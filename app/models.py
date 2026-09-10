@@ -32,3 +32,6 @@ class AskResponse(BaseModel):
     sources: list[Source]
     # True when the router LLM call failed and we fell back to querying everything.
     router_degraded: bool = False
+    # Non-fatal problems: a source that errored, or a hero we couldn't identify.
+    # Present so callers can tell "nothing found" apart from "lookup failed".
+    warnings: list[str] = Field(default_factory=list)

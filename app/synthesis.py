@@ -15,6 +15,14 @@ NEITHER_MESSAGE = (
     "I can only answer questions about movies (from a plot-summary dataset) or "
     "about superheroes (from a superhero database). That question falls outside both."
 )
+PARTIAL_FAILURE_MESSAGE = (
+    "A data source was unavailable while answering this question, so I can't give "
+    "a complete answer right now. Please try again shortly."
+)
+NO_HERO_MESSAGE = (
+    "This looks like a superhero question, but I couldn't tell which superhero you "
+    'mean. Try naming them directly, e.g. "What are Batman\'s stats?"'
+)
 
 _SYSTEM = """You answer the user's question using ONLY the numbered context blocks provided.
 
@@ -54,13 +62,21 @@ def _render(blocks: list[ContextBlock]) -> str:
 
 
 async def synthesize(
-    llm: LLMClient, question: str, blocks: list[ContextBlock]
+    llm: LLMClient,
+    question: str,
+    blocks: list[ContextBlock],
+    notes: list[str] | None = None,
 ) -> Synthesis:
     if not blocks:
         # No retrieval hits -> deterministic refusal, no LLM call.
         return Synthesis(answer=NO_CONTEXT_MESSAGE, used_sources=[], grounded=False)
 
-    user = f"Question: {question}\n\nContext blocks:\n{_render(blocks)}"
+    prefix = ""
+    if notes:
+        # e.g. "a source could not be reached" - so the model doesn't confidently
+        # report "not found" when the real cause was an outage.
+        prefix = "Notes:\n" + "\n".join(f"- {n}" for n in notes) + "\n\n"
+    user = f"{prefix}Question: {question}\n\nContext blocks:\n{_render(blocks)}"
     raw = await llm.complete_json(_SYSTEM, user)
 
     answer = str(raw.get("answer", "")).strip()

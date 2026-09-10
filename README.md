@@ -21,7 +21,8 @@ curl -s localhost:8000/ask -H 'content-type: application/json' \
     {"type": "dataset", "ref": "doc_001", "title": "The Dark Knight", "id": null},
     {"type": "superhero_api", "ref": "Batman", "id": "70", "title": null}
   ],
-  "router_degraded": false
+  "router_degraded": false,
+  "warnings": []
 }
 ```
 
@@ -88,16 +89,19 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-33 tests. All network calls are mocked, so you don't need API keys to run them.
+44 tests. All network calls are mocked, so you don't need API keys to run them.
 
 I treated these as the core logic worth testing:
 
-- the router: a question maps to the right route and the hero name is pulled out
+- the router: a question maps to the right route and the hero name is pulled out,
+  including the fallbacks when the model returns no name or the call fails
 - the Superhero client: found, not found, timeout, and a broken response body
 - dataset search: a known question returns the expected document
 - input validation: empty, whitespace-only, and over-long questions return 422
 - grounding: with no retrieved context the service refuses instead of answering,
   and `sources` only lists context that was actually used
+- resilience: a source that errors is not reported as "nothing found", and a
+  superhero question with no identifiable hero says so
 
 ## How it works and why
 
@@ -108,7 +112,11 @@ one call means a question like "what can Wonder Woman lift?" turns into
 repeatable, and the whole call is mocked in tests. I didn't use keyword matching
 because it falls apart on rephrased questions, which is most of what the routing
 needs to handle. If the LLM call fails, the router doesn't error. It falls back
-to querying both sources and sets `router_degraded` in the response.
+to querying both sources, sets `router_degraded` in the response, and runs a
+crude Title-Case scan of the question to recover a hero name, so the "both"
+fallback actually queries both and not just the dataset. If a superhero route
+comes back with no name at all, the question gets a direct "which superhero do
+you mean?" reply instead of a vague miss.
 
 **The dataset is ~46 movie plot summaries** (`data/movies.csv`). I picked movies
 partly so the `both` route is easy to hit with a natural question, since plenty
@@ -133,9 +141,11 @@ payload is large and nested; I cut it down to about ten fields
 
 **Failure handling.** Every outbound call has a timeout (5s for the Superhero
 API, 20s for the LLM). On a `both` question the two lookups run at the same time.
-If one of them fails the request still returns a partial answer rather than a
-500. The only thing that returns a 503 is the final answer-generation call
-failing.
+A retriever that errors is tracked separately from one that just found nothing:
+the response carries a `warnings` list, the synthesis prompt is told a source was
+unavailable so it won't claim "not found", and if every retriever came back empty
+the caller gets "a source was unavailable, try again" rather than a plain miss.
+The only thing that returns a 503 is the final answer-generation call failing.
 
 **Testability.** The router, the two retrievers, and the LLM client are all
 behind small interfaces that get injected as FastAPI dependencies, so tests can
