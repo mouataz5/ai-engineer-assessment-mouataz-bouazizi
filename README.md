@@ -34,7 +34,7 @@ curl -s localhost:8000/ask -H 'content-type: application/json' \
 answer combines a movie plot summary with live stats from the Superhero API, and
 `sources` lists exactly what was used.
 
-![/ask via Swagger UI](docs/api.png)
+![/ask via Swagger UI](docs/api-response.png)
 
 The Streamlit UI. A plot question goes to the dataset, a stats question goes to
 the Superhero API.
