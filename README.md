@@ -1,4 +1,6 @@
-# ai-engineer-assessment-mouataz-bouazizi
+# Grounded Q&A Router — Movies × Superhero API
+
+*AI Engineer take-home assessment · FastAPI · LLM routing · SQLite FTS5 (BM25) · grounded answers with citations · 44 tests*
 
 A small FastAPI service with one endpoint, `POST /ask`. You send it a question in
 plain English and it answers using one of two sources: a local dataset of movie
@@ -27,6 +29,17 @@ curl -s localhost:8000/ask -H 'content-type: application/json' \
 ```
 
 `route` is `dataset`, `superhero`, `both`, or `neither`.
+
+```mermaid
+flowchart LR
+    Q[Question] --> R{LLM router<br/>route + hero name}
+    R -- dataset --> D[(Movie plots<br/>SQLite FTS5 · BM25)]
+    R -- superhero --> S[Superhero API<br/>trimmed to ~10 fields]
+    R -- both --> D & S
+    R -- neither --> X[Polite refusal]
+    D & S --> G[Grounded synthesis<br/>context only · cites used blocks]
+    G --> A[Answer + sources + warnings]
+```
 
 ## Screenshots
 
